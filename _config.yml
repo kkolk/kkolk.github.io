@@ -24,7 +24,11 @@ github_username:  kkolk
 
 # Build settings
 markdown: kramdown
+<<<<<<< HEAD
 theme: minima
+=======
+theme: jekyll-theme-slate
+>>>>>>> 027f05205e37d8292525f6a53b4b2bd5b14165df
 plugins:
   - jekyll-feed
 
