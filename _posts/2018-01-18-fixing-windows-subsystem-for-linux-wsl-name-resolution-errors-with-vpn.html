@@ -1,0 +1,44 @@
+---
+layout: post
+status: publish
+published: true
+title: Fixing Windows Subsystem for Linux (WSL) name resolution errors with VPN
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+wordpress_id: 202
+wordpress_url: http://frostbyte.us/?p=202
+date: '2018-01-18 12:30:16 -0500'
+date_gmt: '2018-01-18 12:30:16 -0500'
+categories:
+- Windows
+- How-to
+- WSL
+tags: []
+comments: []
+---
+<p>If you've used WSL on a system that connects to a corporate environment you may have experienced issues resolving host names, particularly for your internal network.&nbsp;&nbsp; Here's how to resolve that.&nbsp; The primary issue is the interaction between the DNS changes the VPN connection creates (switching to corporate internal DNS) and how WSL discovers DNS settings to populate /etc/resolv.conf is flawed, this is how I fixed it for my corporate VPN solution (GlobalProtect).</p>
+<p>My fictional internal domain is CONTOSO.COM in this example with DNS servers internally on 172.16.3.24 and 172.16.3.25.</p>
+<p>Delete /etc/resolv.conf by typing:</p>
+<pre> sudo rm /etc/resolv.conf
+</pre>
+<p>When prompted, enter the password you created when installing WSL.</p>
+<p>Now Enter the following command:</p>
+<pre> sudo vi /etc/resolv.conf
+</pre>
+<p>VI is driven entirely by hotkeys, so I will put in <b>BOLD</b> all hotkey presses. Now press <b>i</b> to start inserting new content into the file. The word --- INSERT --- should appear at the bottom of the editor. Alter the file so that it looks like this:</p>
+<pre>search contoso.com
+nameserver 10.3.17.24
+nameserver 10.3.17.25
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+</pre>
+<p>This will configure WSL to use CONTOSO's internal DNS servers and if they do not respond it will fail over to google. We also set it up to automatically search all our internal domains. Once complete press <b>ESC</b> then <b>:wq</b> to write the file to disk and exit.</p>
+<p>You should now be back at the command prompt, now we'll ensure that WSL doesn't still overwrite this file (it tends to regenerate it whenever you close and reopen WSL's command line):</p>
+<pre> sudo chmod 444 /etc/resolv.conf
+</pre>
+<p>Now we are ready to get started. Close the bash window and reopen it by typing bash into the start menu, you should now see a Ubuntu icon and bash will start up in your WSL home folder and your name resolution should work if you are on VPN or not.</p>

@@ -1,0 +1,217 @@
+---
+layout: post
+status: publish
+published: true
+title: Configure an Ansible testing system on Windows (Part 3)
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+excerpt: This is the final part of a three part series.  In the first entry of this
+  series we configured Vagrant and built our basic inventory for Ansible.   We then
+  used Ansible to create a common role with basic tasks that we need to complete on
+  all hosts.   Now we will create specialized playbooks to create both our CONTOSO.com
+  domain controller and create a basic member file server to the domain.
+wordpress_id: 152
+wordpress_url: http://frostbyte.us/?p=152
+date: '2018-01-03 17:51:10 -0500'
+date_gmt: '2018-01-03 17:51:10 -0500'
+categories:
+- Windows
+- Ansible
+- How-to
+tags: []
+comments: []
+---
+<p>This is the final part of a three-part series.&nbsp; In the <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">first entry of this series</a>, we configured Vagrant and built our basic inventory for Ansible.&nbsp;&nbsp; We then used Ansible to<a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/"> create a common role</a> with basic tasks that we need to complete on all hosts.&nbsp;&nbsp; Now we will create specialized playbooks to create both our CONTOSO.com domain controller and create a basic member file server for the domain.</p>
+<h2>Building the CONTOSO.com Domain</h2>
+<p>For our domain controller setup, we will check if the CONTOSO.com domain exists, create it if it doesn't but join the domain if it does.&nbsp; Now our test environment does not contain a CONTOSO.com domain controller out of the box, so we can expect that the domain won't exist.&nbsp; Typically, however, you want more than one domain controller, so this playbook will be able to handle additional controllers joining the domain.&nbsp; Open the <strong>domain_controller.yml </strong>and below the roles section add a new tasks section with the following as our first steps:</p>
+<pre>&nbsp; tasks:
+  # ensure the named domain is reachable from the target host; 
+  # if not, create the domain in a new forest residing on the target host
+&nbsp; - name: Ensure that CONTOSO.com Domain exists
+&nbsp;&nbsp;&nbsp; win_domain:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; dns_domain_name: CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; safe_mode_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp; register: check_domain
+
+&nbsp; # Creating a Domain Controller requires a reboot
+&nbsp; - name: Reboot to complete CONTOSO.com domain setup
+&nbsp;&nbsp;&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; post_reboot_delay: 300
+&nbsp;&nbsp;&nbsp; when: check_domain.changed</pre>
+<blockquote><p>We use <strong>post_reboot_delay: 300</strong> to give the server 5 minutes post reboot to complete setup and be ready to execute additional steps.&nbsp;&nbsp; Your system's performance may vary and additional time at this step may be required, adjust as needed.</p></blockquote>
+<p>The second step we've seen before, it's just a simple reboot.&nbsp; The uses Ansible's <a href="http://docs.ansible.com/ansible/latest/win_domain_module.html">win_domain module</a> to ensure that CONTOSO.com exists.&nbsp;&nbsp; If the domain does not exist the module will enable the required Windows features to support the server acting as a domain controller, create the domain, and set the safe_mode password for the domain controller.&nbsp;&nbsp; We register <em>check_domain</em> to store the results of this step in order to determine if we need to reboot to complete setup.</p>
+<p>Next, we'll add the steps required to join CONTOSO.com if the domain already exists.&nbsp;&nbsp; For these steps, we'll be supplying a domain_admin username and password as well as a safe_mode_password for the domain controller.&nbsp;&nbsp; We will use values similar to the previous steps, add these new steps to the end of the file:</p>
+<pre>&nbsp; - name: Ensure the server is a domain controller
+&nbsp;&nbsp;&nbsp; win_domain_controller:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; dns_domain_name: CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; domain_admin_user: test_admin@CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; domain_admin_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; safe_mode_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: domain_controller
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; log_path: c:\ansible_win_domain_controller.txt
+&nbsp;&nbsp;&nbsp; register: check_domain_controller
+
+&nbsp; # Creating a Domain Controller requires a reboot
+&nbsp; - name: Reboot to complete domain controller setup
+&nbsp;&nbsp;&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; post_reboot_delay: 300
+&nbsp;&nbsp;&nbsp; when: check_domain_controller.changed</pre>
+<p>Now that we have CONTOSO.com Active Directory domain and a new Domain Controller up and running we have some final adjustments to make.&nbsp; We should create an additional domain administrator. Add the following step to the end of the file to create a domain administrator:</p>
+<pre>&nbsp; - name: Ensure that Domain Admin test_admin@CONTOSO.com is present in OU cn=Users,dc=CONTOSO,dc=com
+&nbsp;&nbsp;&nbsp; win_domain_user:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: test_admin
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: present
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; path: cn=Users,dc=CONTOSO,dc=com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; groups:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - Domain Admins</pre>
+<p>Once this server became a domain controller it's DNS configuration no longer allows it to access the internet resources since it's not configured with forwarders.&nbsp; It can only locate resources in CONTOSO.com, which given that it's all alone isn't much.&nbsp; So we need to setup some DNS forwarding and use Google's public DNS servers.&nbsp;&nbsp; For this, we are again going to take advantage of Powershell DSC this time using the <a href="https://github.com/PowerShell/xDnsServer">xDNSServer module</a>.&nbsp; Add the following steps to complete this configuration:</p>
+<pre>&nbsp; - name: Check for xDnsServer Powershell module
+&nbsp;&nbsp;&nbsp; win_psmodule:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: xDnsServer
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: present
+&nbsp; - name: Configure DNS Forwarders
+&nbsp;&nbsp;&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; resource_name: xDnsServerSetting
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Name: DNSServerProperties
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NoRecursion: false
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Forwarders:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - "8.8.8.8"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - "8.8.4.4"</pre>
+<p>Since we don't want two servers trying to build out the domain at the same time, we'll enable serial processing for this runbook to ensure we work with them one by one.&nbsp; This way both nodes don't try to create CONTOSO.com if it doesn't exist.&nbsp;&nbsp; At the top of the file under hosts: domain_controllers add the following line:</p>
+<pre><span class="l l-Scalar l-Scalar-Plain">serial</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">1</span></pre>
+<p>That's it!&nbsp; Here's the full playbook for reference:</p>
+<pre>---
+- name: CONTOSO.com Domain Controller configuration
+&nbsp; hosts: domain_controllers
+&nbsp; serial: 1
+
+&nbsp; roles:
+&nbsp;&nbsp;&nbsp; - { role: common }
+
+&nbsp; tasks:
+
+&nbsp; # ensure the named domain is reachable from the target host; if not, create the domain in a new forest residing on the target host
+&nbsp; - name: Ensure that CONTOSO.com Domain exists
+&nbsp;&nbsp;&nbsp; win_domain:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; dns_domain_name: CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; safe_mode_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp; register: check_domain
+
+&nbsp; # Creating a Domain Controller requires a reboot
+&nbsp; - name: Reboot to complete CONTOSO.com domain setup
+&nbsp;&nbsp;&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; post_reboot_delay: 300
+&nbsp;&nbsp;&nbsp; when: check_domain.changed
+
+&nbsp; - name: Ensure the server is a domain controller
+&nbsp;&nbsp;&nbsp; win_domain_controller:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; dns_domain_name: CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; domain_admin_user: test_admin@CONTOSO.com
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; domain_admin_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; safe_mode_password: AutomationDoesW0rk!
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: domain_controller
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; log_path: c:\ansible_win_domain_controller.txt
+&nbsp;&nbsp;&nbsp; register: check_domain_controller
+
+&nbsp; # Creating a Domain Controller requires a reboot
+  # Long delay since the DC setup can take a while.
+&nbsp; - name: Reboot to complete domain controller setup
+&nbsp;&nbsp;&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; post_reboot_delay: 300
+&nbsp;&nbsp;&nbsp; when: check_domain_controller.changed
+
+&nbsp; - name: Check for xDnsServer Powershell module
+&nbsp;&nbsp;&nbsp; win_psmodule:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: xDnsServer
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: present
+
+&nbsp; - name: Configure DNS Forwarders
+&nbsp;&nbsp;&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; resource_name: xDnsServerSetting
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Name: DNSServerProperties
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NoRecursion: false
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Forwarders:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - "8.8.8.8"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; - "8.8.4.4"
+
+  - name: Ensure that Domain Admin test_admin@CONTOSO.com is present in OU cn=Users,dc=CONTOSO,dc=com
+    win_domain_user:
+      name: test_admin
+      password: AutomationDoesW0rk!
+      state: present
+      path: cn=Users,dc=CONTOSO,dc=com
+      groups:
+        - Domain Admins</pre>
+<p>Let's run this playbook and get CONTOSO.com up and running:</p>
+<pre>ansible-playbook domain_controller.yml -i environments/test/hosts</pre>
+<p><img class="alignnone size-full wp-image-117" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-domain-controller-final.png" alt="" width="585" height="152" /></p>
+<blockquote><p>Occasionally a domain related task (such Domain Admin creation) will fail due to timing issues on the virtual machine.&nbsp; I've tried to add enough post_reboot_delay to get around this but timing varies greatly based on your system performance.&nbsp; So if the playbook fails it may simply be a performance issue on the VM, give it a re-run and usually it picks up and works.</p></blockquote>
+<p>All set! Now it's time to add a member server to our test environment.</p>
+<h2>Creating a member server in CONTOSO.com</h2>
+<p>Our example member server will be a simple file server with a share called Users, nothing special.&nbsp;&nbsp;&nbsp; First, we need to get it setup so that it's DNS is reconfigured and can find a CONTOSO.com domain controller.&nbsp;&nbsp; Create a new playbook called member_server.yml and create a new task to reconfigure the DNS Server Address:</p>
+<pre>---
+
+- name: CONTOSO.com member server configuration
+&nbsp; hosts: member_servers
+
+&nbsp; roles:
+&nbsp;&nbsp;&nbsp; - { role: common }
+
+&nbsp; tasks:
+
+&nbsp; - name: Configure DNS Servers
+&nbsp;&nbsp;&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; resource_name: xDnsServerAddress&nbsp;&nbsp;
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Address: 192.168.100.10
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; InterfaceAlias: Ethernet
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; AddressFamily: IPv4
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Validate: $true</pre>
+<p>This Powershell DSC is part of the xNetworking module since we already used it in the common role we don't need to check that the module is available first.&nbsp;&nbsp; If you've adjusted the IP addresses we used in the vagrant file, you will need to make similar adjustments here as well.&nbsp;&nbsp; This step configures our member server to use our newly created domain controller as a DNS server which is required for it to find our new CONTOSO.com domain.</p>
+<div>Next, we need to ensure that the proper windows features for acting as a file server are installed on our host.&nbsp; Add this task to the playbook:</div>
+<div>
+<pre>&nbsp; - name: Verify File Server Role is installed.
+&nbsp;&nbsp;&nbsp; win_feature:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: File-Services, FS-FileServer
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: present
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; include_management_tools: True</pre>
+<p>This step uses the <a href="http://docs.ansible.com/ansible/latest/win_feature_module.html">win_feature</a> module to execute the&nbsp;Add/Remove-WindowsFeature Cmdlets and install the required items.&nbsp; You can retrieve a complete list of available windows features for a particular Windows Server edition by executing the following PowerShell command on the server:</p>
+<pre>Get-WindowsFeature</pre>
+<p>The name column in the output will contain the values that Ansible's win_feature module needs.</p>
+<p>Our final task is to create a basic share on our member server.&nbsp; For this example, we'll create a basic public folder that any domain user can add files to.&nbsp;&nbsp; This is a two-step process, add the following tasks to the end of the playbook:</p>
+<pre>&nbsp; - name: Ensure directory structure for public share exists
+&nbsp;&nbsp;&nbsp; win_file:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; path: C:\shares\public
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; state: directory
+
+&nbsp; - name: Ensure public share exists
+&nbsp;&nbsp;&nbsp; win_share:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; name: public
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; description: Basic RW share for all domain users
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; path: C:\shares\public
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; list: yes
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; full: Administrators
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; change: Users</pre>
+<p>These steps are pretty straightforward, first, we make sure the folder structure we are planning to share exists and then we create a new share.</p>
+<p>Execute the playbook with the following command to configure your member server:</p>
+<pre>ansible-playbook member_server.yml -i environments/test/hosts</pre>
+<p>If all goes well you should be able to RDP into the virtual environment and access the newly created share.&nbsp;&nbsp; We've successfully created a local test environment complete with a domain controller and basic member file server.&nbsp; Using this we now have a safe space to develop and test additional playbooks.&nbsp;&nbsp; In addition, if the environment ever gets damaged or we would like to reset it to this state we can do so with a few simple commands to restore it to this state:</p>
+<pre>vagrant destroy
+vagrant up
+ansible-playbook domain_controller.yml -i environments/test/hosts
+ansible-playbook member_server.yml -i environments/test/hosts</pre>
+<p>While this guide has barely scratched the surface of what is possible with Ansible, hopefully, it has helped you on the path to improving your Windows configuration management.</p>
+</div>

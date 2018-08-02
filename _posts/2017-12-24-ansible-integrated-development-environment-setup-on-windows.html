@@ -1,0 +1,151 @@
+---
+layout: post
+status: publish
+published: true
+title: Ansible IDE Setup on Windows
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+excerpt: While Ansible started life as a orchestration and configuration as code platform
+  for Linux it's ability to manage Windows systems has been steadily increasing.  Working
+  with Ansible and developing playbooks has been somewhat challenging on the Windows
+  platform which likely holds back it's use on that platform (look no farther than
+  the lack of Windows playboks on Ansible Galaxy for evidence).   However with the
+  introduction of Windows Subsystem for Linux and expanded Windows support in last
+  year things have become much better.  I work in a mixed Windows/Linux environment
+  hosted on an internal VSphere environment (we can't all be cloud native unicorns).   To
+  support that environment and move us to a more sensible 'infrastructure-as-code'
+  configuration, I now do Ansible playbook development for Windows and Linux on an
+  almost daily basis from my Windows 10 workstation.
+wordpress_id: 37
+wordpress_url: http://frostbyte.us/?p=37
+date: '2017-12-24 18:57:44 -0500'
+date_gmt: '2017-12-24 18:57:44 -0500'
+categories:
+- Windows
+- Ansible
+- VSCode
+tags: []
+comments: []
+---
+<p>While Ansible started life as a orchestration and configuration as code platform for Linux it's ability to manage Windows systems has been steadily increasing.&nbsp; Working with Ansible and developing playbooks has been somewhat challenging on the Windows platform which likely holds back it's use on that platform.&nbsp; For evidence of this look no farther than the lack of Windows playbooks on Ansible Galaxy.&nbsp;&nbsp; However with the introduction of Windows Subsystem for Linux and expanded Windows support in last year things have become much better.&nbsp; I work in a mixed Windows/Linux environment hosted on an internal VSphere environment (we can't all be cloud-native unicorns).&nbsp;&nbsp; To support that environment and move us to a more sensible 'infrastructure-as-code' configuration, I now do Ansible playbook development for Windows and Linux on an almost daily basis from my Windows 10 workstation.</p>
+<p>This guide will get you up and running with Windows Subsystem for Linux, VSCode, Ansible, and Git to do development and testing of Ansible playbooks.&nbsp;&nbsp;Although the Windows Linux Subsystem (i.e. Bash on Windows) is not officially supported by either Microsoft or Ansible, I have used it pretty extensively with Ansible without any issues.&nbsp; The environment I work with daily runs a mixed Linux/Windows infrastructure on VMWare VSphere.&nbsp;&nbsp; So I will also be configuring additional items required to support Kerberos, WinRM, and VMWare for Ansible playbooks.</p>
+<h2>Prerequisites</h2>
+<p>This guide assumes your workstation meets the following minimal standards:</p>
+<ul>
+<li>Windows 10 Version 1703</li>
+<li>64-bit installation (can't run on 32-bit systems)</li>
+</ul>
+<p>Once you verify your system is 64-bit and up to date, follow these steps to enable the 'Windows Subsystem for Linux':</p>
+<ol>
+<li>Open 'Settings' (the gear in the start menu)</li>
+<li>Click 'Update &amp; Security', then click the 'For developers' option on the left.</li>
+<li>Toggle the 'Developer mode' option, and accept any warnings Windows pops up.</li>
+</ol>
+<p>Wait for Windows to install a few things in the background (it will eventually let you know a restart may be required for changes to take effect&mdash;ignore that for now). Next, to install the actual Linux Subsystem, you have to jump over to 'Control Panel', and do the following:</p>
+<ol>
+<li>Click on 'Programs'</li>
+<li>Click on 'Turn Windows features on or off'</li>
+<li>Scroll down and check 'Windows Subsystem for Linux (Beta)', and then click OK.</li>
+</ol>
+<p>The subsystem will be installed, then Windows will require a reboot. Reboot, then open up the start menu and enter 'bash' (to open up 'Bash' installation in a new command prompt). Answer the prompts to install Ubuntu into the WSL and create your user within WSL (this password does not sync with your Active Directory account, think of WSL as a separate virtual machine), and once that's all done (it takes a few minutes to install), you will finally have Ubuntu running on your Windows laptop, somewhat integrated with Windows.</p>
+<p><img class="alignnone wp-image-50 size-full" src="http://frostbyte.us/wp-content/uploads/2017/12/2017-10-23_22_32_26-kkolk@KKOLK-LAPTOP_ansible.png" alt="WSL ready to go" width="980" height="513" /></p>
+<p>Now, you may find that networking isn't working properly in WSL, particularly if your workstation uses a VPN for access to a corporate network.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ping a host on the internet to verify connectivity if it's not working see this quick fix.</p>
+<h2>Installing Ansible on Windows Subsystem for Linux</h2>
+<p>To begin exploring Ansible as a means of managing our various servers, we need to install the Ansible software in WSL.</p>
+<p>The best way to get Ansible for Ubuntu is to add the project's PPA (personal package archive) to your system. We can add the Ansible PPA by typing the following command:</p>
+<pre> sudo apt-add-repository ppa:ansible/ansible
+</pre>
+<p>Press ENTER to accept the PPA addition.</p>
+<p>Next, we need to refresh our system's package index so that it is aware of the packages available in the PPA. Then also update all the packages in our WSL to the latest version. Afterwards, we can install Ansible and all it's required supporting packages:</p>
+<pre> sudo apt-get update &amp;&amp; sudo apt-get upgrade &amp;&amp; sudo apt-get install ansible
+</pre>
+<p>Answer <b>Y</b> when prompted to continue for both upgrades and installation of Ansible. The entire process will take several minutes. There will be some warnings during package upgrading, don't worry about it. In the end, you should see the following output indicating Ansible 2.4.0 or newer is installed.</p>
+<p><img class="alignnone wp-image-51 size-full" src="http://frostbyte.us/wp-content/uploads/2017/12/2017-10-27_04_06_47-Editing_Configuring_an_Ansible_development_environment_in_Windows_-_LANWiki.png" alt="Ansible ready to go" width="980" height="512" /></p>
+<p>Next, we're going to take care of getting Pip installed. Pip is a package management system used to install and manage software packages written in Python. Since Ansible is written in Python it makes use of a number of additional packages. Type the following into the command prompt:</p>
+<pre> sudo apt-get install python-pip
+</pre>
+<p>Answer <b>Y</b> when prompted to continue.</p>
+<p>Ironically even though we just installed it, it's pretty likely that pip is out of date. So let's update it:</p>
+<pre> sudo -H pip install --upgrade pip
+</pre>
+<p>Then let's add one additional module needed for VMWare interactions:</p>
+<pre> sudo -H pip install --upgrade pyvmomi
+</pre>
+<p>Once that process completes we need to install some required packages for Kerberos.</p>
+<pre> sudo apt-get install libkrb5-dev
+</pre>
+<p>Answer <b>Y</b> when prompted to continue.</p>
+<p>We will now use pip to install the python libraries we need for working with Windows servers:</p>
+<pre> sudo -H pip install pywinrm[kerberos]
+</pre>
+<p>Next, we'll install krb5-user to enable Kerberos under WSL:</p>
+<pre> sudo apt-get install krb5-user
+</pre>
+<p>Answer <b>Y</b> when prompted to continue.</p>
+<p>WSL will automatically configure the Kerberos environment to use your domain as a realm. We can verify Kerberos is working by authenticating with Active Directory. (This assumes you are on a network with Active Directory).</p>
+<pre> kinit username@CONTOSO.COM
+</pre>
+<p>Enter your password when prompted. Linux should return the command prompt without any output. To verify you have a Kerberos token enter the following command:</p>
+<pre> klist
+</pre>
+<p>You should see output similar to this:</p>
+<pre> Ticket cache: FILE:/tmp/krb5cc_1000
+ Default principal: kkolk@CONTOSO.COM
+ 
+ Valid starting       Expires              Service principal
+ 10/27/2017 04:24:38  10/27/2017 14:24:38  krbtgt/CONTOSO.COM@CONTOSO.COM
+         renew until 10/28/2017 04:24:33
+</pre>
+<p>Next, we will setup CredSSP. CredSSP authentication can be used to authenticate to Windows with both domain and local accounts. It allows credential delegation to do second hop authentication on a remote host by sending an encrypted form of the credentials to the remote host using the CredSSP protocol. Enter the following command:</p>
+<pre> sudo -H pip install pywinrm[credssp]
+</pre>
+<p>We're done! At this point, we have a working Ansible environment that can interact with both Linux and Windows servers for management.</p>
+<h2>Setting up VSCode as an Ansible IDE</h2>
+<p>Visual Studio Code is a lightweight but powerful source code editor which is available for Windows, macOS, and Linux. It comes with built-in support for JavaScript, TypeScript, and Node.js and has a rich ecosystem of extensions for other languages (including Ansible, YAML, and Python). VS Code has these <a class="external text" href="https://code.visualstudio.com/docs/introvideos/overview" rel="nofollow">introductory videos</a> to get you started. When working with Ansible and other infrastructure as code systems you will quickly learn the value of version control, for me Git works best so I'll assume that you will be working with a Git-based repository for development.&nbsp; Microsoft has released VSCode as an Open Source project and it has integration with Git so it's perfect for our purposes.</p>
+<p>VS Code will leverage your machine's Git installation, so you need to install Git first before you can use it within VSCode. Make sure you install at least version 2.0.0. You can download Git <a class="external text" href="https://git-scm.com/download" rel="nofollow">here</a> during setup do the following:</p>
+<ul>
+<li>Chose the option to use the Native Windows Secure Channel Library so that our AD certificates will work without warnings.</li>
+<li>Select <b>Check-out AS IS, commit Unix style line endings</b> during setup since we are working on a cross-platform (Windows/Linux) project.</li>
+<li>All other settings can remain on defaults.</li>
+</ul>
+<p><a class="external text" href="https://go.microsoft.com/fwlink/?Linkid=852157" rel="nofollow">Click here</a> download VSCode. If that link no longer works visit <a class="external free" href="https://code.visualstudio.com/" rel="nofollow">https://code.visualstudio.com/</a> for the latest version. Install VSCode using the downloaded setup file, you can choose if you want to "Open with Code" actions to your context menu (I recommend it).</p>
+<p>Once setup open VSCode. It should open to the Welcome screen.</p>
+<p>VSCode can be customized in a number of ways, but for now, we'll concentrate on getting it setup for Ansible development. Click on <b>Tools and Languages</b> to get started. The Extensions marketplace will open on the left. The search box will automatically be populated with the following text:</p>
+<pre> @sort:installs category:languages 
+</pre>
+<p>Add <b>ansible</b> to the end of that text and install <b>language-Ansible</b>. This will get us some syntax highlighting.</p>
+<p>We need to configure VSCode to associate Language-Ansible with our source files. To do this either press the CTRL+comma keyboard shortcut or <i>File &rarr; Preferences &rarr; Settings</i>. Enter the following in section that states <b>Place your settings here to override defaults</b></p>
+<pre>   "files.associations": {
+       "**/defautls/**/*": "ansible",
+       "**/tasks/**/*.yml"&nbsp;: "ansible",
+       "**/handler/*.yml"&nbsp;: "ansible",
+       "**/*_vars/**/*.yml"&nbsp;: "ansible",
+       "**/roles/**/*.yml"&nbsp;: "ansible",
+       "**/playbooks/**/*.yml"&nbsp;: "ansible",
+       "**/*ansible*/**/*.yml"&nbsp;: "ansible",
+       "**/vars/**/*.yml": "ansible",
+       "**/inventory/*/*": "ansible"
+   }
+</pre>
+<p>Now we are going to reconfigure VSCode to use our Windows Subsystem for Linux as it's terminal so that we can easily test out Ansible playbooks in within our IDE.</p>
+<p>In the settings search bar, type <i>terminal.integrated.shell.windows</i> (or whatever gets you far enough long)</p>
+<p>Find the setting in the actual settings file, use Edit (mouse over the line, it will be on the left: on a touch screen without a mouse, you should be able to simply tap to the left of the line), and select Replace in Settings.</p>
+<p>In the right pane, modify the entry created in the modified JSON file: replace the previous Powershell setting with:</p>
+<pre>  "C:\WINDOWS\Sysnative\bash.exe"
+</pre>
+<p>Now there is one last adjustment to make, VSCode defaults its tab size to 4 and while YAML has no specific indentation requirements,&nbsp; Style-wise Ansible playbook universally seem to tab size of 2. So let's adjust that.</p>
+<p>In the next line of our settings file add the following:</p>
+<pre>   "editor.tabSize": 2</pre>
+<p>Make sure there are no red squiggles indicating formatting errors, your settings file should now look like this:</p>
+<p><img class="alignnone size-full wp-image-52" src="http://frostbyte.us/wp-content/uploads/2017/12/Settings.png" alt="" width="719" height="332" /></p>
+<p>Close and save the settings.json with CTRL+F4 or clicking on the close tab.</p>
+<p>Now press CTRL+` to open the terminal, you should now have a bash terminal as shown below.</p>
+<p>You are all set and ready to get started working with VSCode as an IDE for developing playbooks for Ansible on Windows.&nbsp;&nbsp; Below is a test run showing Ansible running a simple playbook against a windows host from within VSCode.</p>
+<p><img class="alignnone size-full wp-image-39" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-test-run.png" alt="" width="902" height="222" /></p>
+<h2 id="versioneverything">Version everything</h2>
+<p>You should be versioning everything including your Ansible playbooks.&nbsp; Get in the practice now while you are learning and the workflow will become second nature. For versioning and change tracking, you can use any source code management system (SCM), but I&nbsp;<strong>highly recommend Git</strong>&nbsp;to manage your infrastructure code.&nbsp; If you don't have a centralized SCM, that you at least get started with a local one which Git is a perfect choice for.&nbsp; There's a <a href="https://www.theregister.co.uk/2015/12/07/visual_studio_code_git_integration/">guide on Git with Visual Studio Code</a> how to create a local repository on <a href="https://www.theregister.co.uk/2015/12/07/visual_studio_code_git_integration/">The Register</a>, which also covers a variety of other possible providers.</p>

@@ -1,0 +1,137 @@
+---
+layout: post
+status: publish
+published: true
+title: Configure an Ansible testing system on Windows (Part 2)
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+excerpt: In the first entry of this series we configured Vagrant and VirtualBox to
+  deploy a pair of basic Windows 2012 R2 virtual machines.  We built our basic inventory
+  for Ansible and verified we could connect to our newly created virtual machines. 
+  Now we can get onto the real work - developing Ansible playbooks.
+wordpress_id: 148
+wordpress_url: http://frostbyte.us/?p=148
+date: '2018-01-01 00:00:54 -0500'
+date_gmt: '2018-01-01 00:00:54 -0500'
+categories:
+- Windows
+- Ansible
+- How-to
+tags: []
+comments: []
+---
+<p>In the <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">first entry of this series</a>, we configured Vagrant and VirtualBox to deploy a pair of basic Windows 2012 R2 virtual machines.&nbsp; We built our basic inventory for Ansible and verified we could connect to our newly created virtual machines.&nbsp; Now we can get onto the real work - developing Ansible playbooks.</p>
+<h2>Creating our common role</h2>
+<p>The first playbook files we will create are related to our common role for windows.&nbsp;&nbsp; Essentially these are features we are going to want available on every managed system such as latest version of PowerShell.&nbsp; First let's create the folder structure for our common role; create the roles folder and subfolders shown below:</p>
+<p><img class="alignnone size-full wp-image-113" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c2-common-role.png" alt="" width="366" height="220" /></p>
+<p>In the <strong>roles/common/tasks folder</strong> create a <strong>main.yml </strong>file.&nbsp;&nbsp; The first tasks we will add to this role will install the latest version of Powershell using the chocolatey package manager.&nbsp; Since our host doesn't have chocolatey installed, Ansible will also automatically install it.&nbsp;&nbsp; Add the following task to the file:</p>
+<div>
+<div>
+<pre><em># The latest powershell gives us most functionality</em>
+- name: Make sure Windows Management Framework and PowerShell is latest version
+&nbsp; win_chocolatey:
+&nbsp;&nbsp;&nbsp;&nbsp; name: powershell
+&nbsp;&nbsp;&nbsp;&nbsp; state: latest
+&nbsp; register: check_powershell5
+&nbsp; become: yes
+&nbsp; become_method: runas
+</pre>
+<blockquote><p>When we run this later, you may get a warning about the use of the runas method if you are using Ansible 2.4 due to this method being experimental.&nbsp; It can safely be ignored.</p></blockquote>
+<p>The 5th line register function creates an Ansible variable that stores the results of the chocolatey task which we can use to determine what to do on later steps.&nbsp;&nbsp; Upgrading WMF requires that we reboot the system.&nbsp; So we will check to see if our Powershell5 task resulted in a change and reboot the server before continuing.&nbsp;&nbsp; Add the following task below the first one to our common role:</p>
+<pre><em># Powershell 5.0 requires a reboot, so lets get it done if it's needed.</em>
+- name: Reboot to complete Powershell 5.0 install
+&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp;&nbsp;&nbsp; post_reboot_delay: 120
+&nbsp; when: check_powershell5.changed</pre>
+</div>
+</div>
+<blockquote><p>This shutdown gives windows plenty of time - 10 minutes to shutdown, 10 minutes to reboot, followed by a 2 minute delay after boot.</p></blockquote>
+<p>If you haven't already, save the file.&nbsp;&nbsp; Now we will create the domain controller role playbook and add the common role to it for testing.&nbsp;&nbsp; In the top level folder ( <strong>C:\source\ansible-for-windows\</strong> ) create a file called <strong>domain_controllers.yml</strong>.&nbsp; In it, we will tell Ansible to run the playbook against the members of our [domain_controllers] group in inventory and to include the common role.</p>
+<div>
+<pre>---
+- name: CONTOSO.com Domain Controller configuration
+&nbsp; hosts: domain_controllers
+
+  roles:
+&nbsp; - { role: common }</pre>
+</div>
+<p>Now since we are using the become_method: runas in our PowerShell step, we need a few extra variables defined to support this.&nbsp;&nbsp; In <strong>roles\common\defaults&nbsp; </strong>create <strong>main.yml</strong> and add the following values to the file:</p>
+<div>
+<pre><em># default user for using become: runas method</em>
+<em># used for installing Powershell 5.0 in this role.</em>
+ansible_become_password: vagrant
+ansible_become_user: vagrant</pre>
+</div>
+<p>Save the file and we can now execute our first windows playbook by typing the following command into bash:</p>
+<pre>ansible-playbook domain_controller.yml -i environments/test/hosts</pre>
+<p>This will execute our playbook and assuming everything is in order you should see this output:</p>
+<p><img class="alignnone size-full wp-image-115" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-dc-first-run.png" alt="" width="874" height="308" /></p>
+<p>Worked great, but no configuration is ever truly complete, so let's modify our common role to include enabling Remote Desktop Protocol on this host.&nbsp;&nbsp; To do this we will take advantage of Windows Powershell Desired State Configuration, which is very powerful when used in conjunction with Ansible using the <a href="http://docs.ansible.com/ansible/latest/win_dsc_module.html">win_dsc module</a>.&nbsp; Before we can use a particular DSC module we need to the module available, luckily we can use the win_psmodule to make sure these modules are installed.</p>
+<p>To get this setup edit the roles/common/tasks/main.yml and expand it to also complete this task by adding the following steps after our reboot for Powershell 5.0 install step:</p>
+<div>
+<pre>#
+# Enable Remote Desktop
+#
+
+- name: Windows | Check for xRemoteDesktopAdmin Powershell module
+&nbsp; win_psmodule:
+&nbsp;&nbsp;&nbsp; name: xRemoteDesktopAdmin
+&nbsp;&nbsp;&nbsp; state: present
+
+- name: Windows | Enable Remote Desktop
+&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp; resource_name: xRemoteDesktopAdmin
+&nbsp;&nbsp;&nbsp; Ensure: present
+&nbsp;&nbsp;&nbsp; UserAuthentication: Secure
+
+- name: Windows | Check for xNetworking Powershell module
+&nbsp; win_psmodule:
+&nbsp;&nbsp;&nbsp; name: xNetworking
+&nbsp;&nbsp;&nbsp; state: present
+
+- name: Firewall | Allow RDP through Firewall
+&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp; resource_name: xFirewall
+&nbsp;&nbsp;&nbsp; Name: "Administrator access for RDP (TCP-In)"
+&nbsp;&nbsp;&nbsp; Ensure: present
+&nbsp;&nbsp;&nbsp; Enabled: True
+&nbsp;&nbsp;&nbsp; Profile: "Domain"
+&nbsp;&nbsp;&nbsp; Direction: "Inbound"
+&nbsp;&nbsp;&nbsp; Localport: "3389"
+&nbsp;&nbsp;&nbsp; Protocol: "TCP"
+&nbsp;&nbsp;&nbsp; Description: "Opens the listener port for RDP"</pre>
+<p>These steps are pretty straight forward.&nbsp;&nbsp; We make sure the Powershell DSC module we are going to use to configure RDP is available, then use it to enable RDP.&nbsp;&nbsp; However, since the firewall is on by default in Windows Server 2012 R2 we also need to make sure the RDP listener port is open which we used the xNetworking module to take care of.&nbsp;&nbsp; Ansible makes working with Powershell DSC very straight forward, compare the values we're passing to the module with the ones documented for <a href="https://github.com/PowerShell/xNetworking/wiki/xFirewall">xFirewall</a>.</p>
+</div>
+<div>Time test this updated playbook, to do that we simply re-execute the same command we entered before:</div>
+<pre>ansible-playbook domain_controller.yml -i environments/test/hosts</pre>
+<div>Now with this execution, Ansible will detect that Powershell 5.0 is already installed and since nothing changed in that step we will skip the reboot.&nbsp;&nbsp; It will then go on to make the necessary adjustments to install the missing PowerShell modules and enable RDP. &nbsp; This is an example of Ansible's typically idempotent operation.&nbsp; An operation is idempotent if the result of performing it once is exactly the same as the result of performing it repeatedly without any intervening actions.&nbsp;&nbsp; This style of execution allows us to continue iterating on our roles and repeatedly execute them on the same hosts without ill effects.</div>
+<div></div>
+<div>Try executing the playbook again, you should see all steps coming back as OK or Skipped indicating no changes needed to be made.</div>
+<div></div>
+<div>The final step we need to add is to rename the host to match our inventory.&nbsp; Currently, all of our VMs have the name assigned to them by the vagrant template.&nbsp; Add these steps to the end of the file:</div>
+<pre># Make sure our hostname matches the inventory and isn't still the value from vagrant template
+- name: Change hostname to match inventory
+&nbsp; win_domain_membership:
+&nbsp;&nbsp;&nbsp; hostname: "{{ inventory_hostname }}"
+&nbsp;&nbsp;&nbsp; domain_admin_user: "{{ ansible_user }}"
+&nbsp;&nbsp;&nbsp; domain_admin_password: "{{ ansible_password }}"
+&nbsp;&nbsp;&nbsp; workgroup_name: WORKGROUP
+&nbsp;&nbsp;&nbsp; state: workgroup
+&nbsp; register: name_state
+
+- name: Reboot to complete name change
+&nbsp; when: name_state.changed
+&nbsp; win_reboot:
+&nbsp;&nbsp;&nbsp; shutdown_timeout: 600
+&nbsp;&nbsp;&nbsp; reboot_timeout: 600
+&nbsp; &nbsp; post_reboot_delay: 120</pre>
+<div>But, this step would be problematic if the host had joined the domain (or was a domain controller) so we need to verify that we're in a workgroup and need to complete this step.&nbsp; Add the following line to the <em>win_domain_membership</em> task:</div>
+<pre>  when: ansible_env.COMPUTERNAME != inventory_hostname|upper</pre>
+<div>Execute the playbook one more time to rename the host.&nbsp;&nbsp; Now that we have a fleshed out a set of common tasks, let's move on <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-3/">Part 3 - Creating our domain controller and member server roles</a>.</div>

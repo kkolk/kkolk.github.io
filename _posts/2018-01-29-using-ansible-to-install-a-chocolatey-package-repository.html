@@ -1,0 +1,175 @@
+---
+layout: post
+status: publish
+published: true
+title: Using Ansible to install a Chocolatey Package Repository
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+wordpress_id: 228
+wordpress_url: http://frostbyte.us/?p=228
+date: '2018-01-29 00:58:09 -0500'
+date_gmt: '2018-01-29 00:58:09 -0500'
+categories:
+- Windows
+- Ansible
+- How-to
+tags: []
+comments: []
+---
+<p>When many Windows administrators think of installing applications even very basic ones it's always... Next Next Next Finish.&nbsp;&nbsp; Ansible and configuration management tools like it don't work like this, they can't press Next.&nbsp;&nbsp; They require silent installers that run start to finish on their own.&nbsp;&nbsp; My recommendation for solving this problem on Windows is <a href="https://chocolatey.org/docs/why">Chocolatey</a>.&nbsp;&nbsp; It brings to Windows all the advantages of a Linux package manager like yum or apt-get and integrates well with Ansible through its <a href="http://docs.ansible.com/ansible/latest/win_chocolatey_module.html">win_chocolatey module</a> that <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">we used previously</a> when setting up our test environment.&nbsp;&nbsp; Since Chocolatey is built on top of the NuGet infrastructure, that means we can install packages from Chocolatey.org, NuGet.org, MyGet.org, file shares, directories, custom feeds and from private feeds. In this guide, we'll be developing an Ansible role to install internal server we can use to deploy our own company-specific packages.</p>
+<p>At a high level, we're simply going to be implementing <a href="https://chocolatey.org/docs/how-to-set-up-chocolatey-server">chocolatey's installation guide</a> as an Ansible role.&nbsp;&nbsp; So for this, we will need to accomplish the following:</p>
+<ul>
+<li>Ensure IIS is installed.</li>
+<li>Ensure that ASP.NET is installed.</li>
+<li>Disable or remove the Default website</li>
+<li>Install the chocolatey.server package</li>
+<li>Set up an app pool for Chocolatey.Server. Ensure 32-bit is enabled and the managed runtime version is v4.0(or some version of 4).</li>
+<li>Set up an IIS website pointed to the install location and set it to use the app pool.</li>
+<li>Make sure <strong>c:\tools\chocolatey.server</strong> has the following permissions:
+<ul>
+<li><strong>IIS_IUSRS</strong> - Read</li>
+<li><strong>USR</strong> - Read</li>
+<li><strong>IIS APPPOOL\ChocolateyServer</strong> - Read</li>
+</ul>
+</li>
+<li>Make sure <strong>c:\tools\chocolatey.server\App_Data</strong> has following permissions:
+<ul>
+<li><strong>IIS_IUSRS </strong>- Modify</li>
+<li><strong>IIS APPPOOL\\ChocolateyServer</strong> - Modify</li>
+</ul>
+</li>
+</ul>
+<p>When completing and testing this role, I'm going to assume that you are operating it in the CONTOSO.com Ansible test environment from <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">my previous 3-part guide</a>.&nbsp;&nbsp; The role as designed will operate without issue in any environment, but a few steps here when we get to testing the playbook include elements specific to that environment.&nbsp; For the purposes of this example, we'll be adding a chocolatey server to our existing member server - <strong>server01</strong>.</p>
+<h2>Getting Started</h2>
+<p>The first step in creating our new role is to create the initial folder structure; in your roles folder create the chocolatey_server folder, subfolders, and files shown below:</p>
+<p><img class="alignnone wp-image-189 size-full" src="http://frostbyte.us/wp-content/uploads/2018/01/c2-image1-e1517184475890.png" alt="" width="332" height="174" /></p>
+<p>Now we can start working on Chocolatey.server's requirements.&nbsp; Open up the <strong>tasks/main.yml , </strong>we need to do is add a step to ensure IIS is installed.&nbsp;&nbsp; We can use the <a href="http://docs.ansible.com/ansible/latest/win_feature_module.html">win_feature</a> module to easily accomplish this:</p>
+<pre>- name: Ensure IIS is installed
+&nbsp; win_feature:
+&nbsp;&nbsp;&nbsp; name: Web-Server
+&nbsp;&nbsp;&nbsp; state: present</pre>
+<p>If we wanted the management tools included we can simply add a line below <strong>state: present</strong> that says:</p>
+<pre><span class="l l-Scalar l-Scalar-Plain">include_management_tools</span><span class="p p-Indicator">:</span> <span class="l l-Scalar l-Scalar-Plain">True
+</span></pre>
+<p>I'll leave it up to you if you want to include them, just so you can poke around in IIS after it's running to verify things, they are not required, however.</p>
+<p>Next up we need ASP.NET, again we can use the win_feature module, which means we simply could create another step that calls win_feature again.&nbsp; We also want to have Web Application Initialization to improve site start-up performance. &nbsp; We could handle this by adding two more steps calling win_feature. &nbsp; However, this is an excellent time to make use of one of Ansible's <a href="http://docs.ansible.com/ansible/latest/playbooks_loops.html">loops</a>.&nbsp;&nbsp; Let's modify our first step to accomplish both tasks in one go with a loop as shown:</p>
+<pre>- name: Ensure IIS Web-Server and ASP.NET are installed
+&nbsp; win_feature:
+&nbsp;&nbsp;&nbsp; name: "{{ item }}"
+&nbsp;&nbsp;&nbsp; state: present
+&nbsp; with_items:
+&nbsp;&nbsp;&nbsp; - Web-Server
+&nbsp;&nbsp;&nbsp; - Web-Asp-Net45
+&nbsp;&nbsp;&nbsp; - Web-AppInit</pre>
+<p>Now when we run this playbook later Ansible will handle each of these items separately but as part of the same overall task:<br />
+<img class="alignnone size-full wp-image-190" src="http://frostbyte.us/wp-content/uploads/2018/01/c2-image2.png" alt="" width="623" height="70" /></p>
+<p>Next, we need to make sure that we have the xWebAdministration module available so that we can use Powershell Desired State Configuration (DSC) to manage IIS.&nbsp;&nbsp; Just like in our previous guide we'll use the ansible win_psmodule to verify that it's present or install it from Powershell Gallery if it's not:</p>
+<pre>- name: Ensure Powershell xWebAdministration module is available
+&nbsp; win_psmodule:
+&nbsp;&nbsp;&nbsp; name: xWebAdministration
+&nbsp;&nbsp;&nbsp; state: present</pre>
+<p>With that module now present let's delete the default IIS website that Microsoft includes with IIS:</p>
+<pre>- name: Ensure Default Web Site is not present
+&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp; resource_name: xWebsite
+&nbsp;&nbsp;&nbsp; Name: Default Web Site
+&nbsp;&nbsp;&nbsp; Ensure: Absent</pre>
+<p>Let's go ahead and test this role, assuming you are working off the test environment from the previous guides open up member_server.yml and add the following lines to the bottom of the file:</p>
+<div>
+<pre>- name: Configure Package Management Server
+hosts: chocolatey_server
+tags: chocolatey
+
+- { role: chocolatey_server }</pre>
+</div>
+<p>Now we can test our new playbook simply by re-running our member_server play:</p>
+<pre>ansible-playbook member_server.yml -i environments/test/hosts</pre>
+<p>You should see the three new steps execute and make changes to the server.</p>
+<h2>Installing and Configuring Chocolatey.server</h2>
+<p>Now we're going to add steps install Chocolatey.server into C:\tools\chocolately.server\ and configure IIS to host the service.&nbsp;&nbsp; The first thing we need to do is to install the chocolatey.server package, we'll use win_chocolatey to do this.&nbsp;&nbsp; In your <strong>chocolatey_server\tasks\main.yml </strong>add this step:</p>
+<pre>- name: Chocolatey.server package is installed
+&nbsp; win_chocolatey:
+&nbsp;&nbsp;&nbsp; name: "chocolatey.server"
+&nbsp;&nbsp;&nbsp; state: present</pre>
+<p>Next, we need an application pool for Chocolatey.server.&nbsp; We can use the <strong>xWebAppPool</strong> Powershell DSC module for this which is part of the <a href="https://github.com/PowerShell/xWebAdministration">xWebAdministration module</a> we used earlier.&nbsp; Using this module not only can we create the new app pool but we can ensure that it is configured to ensure that 32-bit is enabled and that the proper managed runtime version is used.&nbsp; Add the following task:</p>
+<div>
+<pre>- name: Configure AppPool for Chocolatey.server
+&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp; resource_name: xWebAppPool
+&nbsp;&nbsp;&nbsp; Name: ChocolateyServer
+&nbsp;&nbsp;&nbsp; Ensure: present
+&nbsp;&nbsp;&nbsp; enable32BitAppOnWin64: true
+&nbsp;&nbsp;&nbsp; managedRuntimeVersion: v4.0
+&nbsp;&nbsp;&nbsp; startMode: AlwaysRunning
+&nbsp;&nbsp;&nbsp; autoStart: true
+&nbsp;&nbsp;&nbsp; State: started</pre>
+<p>Now that we have both the package installed and the application pool configured there are a variety of folder permissions outlined above that we need to configure.&nbsp; All of these can be done using the win_acl module.&nbsp; Add the following steps to your <strong>chocolatey_server/tasks/main.yml</strong>:</p>
+<pre>&nbsp;- name: Grant read permissions to c:\tools\chocolatey.server
+&nbsp; win_acl:
+&nbsp;&nbsp;&nbsp; user: "{{ item }}"
+&nbsp;&nbsp;&nbsp; path: c:\tools\chocolatey.server
+&nbsp;&nbsp;&nbsp; rights: Read
+&nbsp;&nbsp;&nbsp; state: present
+&nbsp;&nbsp;&nbsp; type: allow
+&nbsp;&nbsp;&nbsp; inherit: ContainerInherit, ObjectInherit
+&nbsp;&nbsp;&nbsp; progagation: InheritOnly
+&nbsp; with_items:
+&nbsp;&nbsp;&nbsp; - IIS_IUSRS
+&nbsp;&nbsp;&nbsp; - IUSR
+&nbsp;&nbsp;&nbsp; - IIS APPPOOL\ChocolateyServer
+
+- name: Grant IIS APPPOOL\ modify permissions to c:\tools\chocolatey.server\App_Data
+&nbsp; win_acl:
+&nbsp;&nbsp;&nbsp; user: "{{ item }}"
+&nbsp;&nbsp;&nbsp; path: c:\tools\chocolatey.server
+&nbsp;&nbsp;&nbsp; rights: Modify
+&nbsp;&nbsp;&nbsp; state: present
+&nbsp;&nbsp;&nbsp; type: allow
+&nbsp;&nbsp;&nbsp; inherit: ContainerInherit, ObjectInherit
+&nbsp;&nbsp;&nbsp; progagation: InheritOnly
+&nbsp; with_items:
+&nbsp;&nbsp;&nbsp; - IIS_IUSRS
+&nbsp;&nbsp;&nbsp; - IIS APPPOOL\ChocolateyServer
+
+</pre>
+<p>This sets up the required permissions to allow Chocolatey.server to accept new packages that we upload using <em>choco push </em>using our API key which we will setup later.&nbsp;&nbsp; Next, we need to make sure that Chocolatey.server has a website setup.&nbsp;&nbsp; We can use the xWebsite Powershell DSC module to complete this task:</p>
+<pre>- name: Windows | Add Website for Chocolatey.server
+&nbsp; win_dsc:
+&nbsp;&nbsp;&nbsp; resource_name: xWebsite
+&nbsp;&nbsp;&nbsp; Name: ChocolateyServer
+&nbsp;&nbsp;&nbsp; Ensure: present
+&nbsp;&nbsp;&nbsp; BindingInfo:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Protocol: http
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Port: 80
+&nbsp;&nbsp;&nbsp; ApplicationPool: ChocolateyServer
+&nbsp;&nbsp;&nbsp; PreloadEnabled: true
+&nbsp;&nbsp;&nbsp; ServiceAutoStartEnabled: true
+&nbsp;&nbsp;&nbsp; AuthenticationInfo:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Anonymous: true
+&nbsp;&nbsp;&nbsp; PhysicalPath: c:\tools\chocolatey.server
+</pre>
+<p>This is a fairly straightforward setup, we're setting up a website whose home folder is c:\tools\chocolatey.server (the default install path for Chocolately.server) and binding it to port 80.&nbsp;&nbsp; We've also enabled a few additional settings such as <strong>PreloadEnabled</strong> and <strong>ServiceAutoStartEnabled </strong>to make sure this site starts by default.&nbsp;&nbsp;<strong>PreloadEnabled</strong> will "warm up" our site for us allowing ASP.net to compile pages before our first user visits.&nbsp; To do this IIS will simulate a user request to the default page of the website so that the application initializes. The request is not logged in the IIS logs.</p>
+<p>The last thing we should do is customize our chocolatey API key.&nbsp; The API Key will be used when we upload a new package to the server. Add this to our chocolatey_server role:</p>
+<pre>- name: Set API-Key
+&nbsp; win_lineinfile:
+&nbsp;&nbsp;&nbsp; path: c:\tools\chocolatey.server\web.confi
+&nbsp;&nbsp;&nbsp; regexp: 'add key="apiKey"'
+&nbsp;&nbsp;&nbsp; line: '<add key="apiKey" value="{{ chocolatey_server_api }}" />'</pre>
+</div>
+<p>Now, the variable we are using here hasn't been declared yet, we'll do that by adding it to our defaults\main.yml.&nbsp; Create main.yml in the defaults folder and add the following content to it:</p>
+<pre>--- 
+# defaults file for roles/chocolatey_server 
+chocolatey_server_api: ChocolateyAPIKey</pre>
+<div>
+<p>Feel free to adjust the API key value to one of your own and save the file.</p>
+<p>Now we're ready to run the playbook. Rerun our member_server play to install the Chocolately server:</p>
+<pre>ansible-playbook member_server.yml -i environments/test/hosts</pre>
+<p>Once complete open your web browser and browse to <a href="http://192.168.100.11">http://192.168.100.11</a> and you should see a page similar to this:</p>
+<p><img class="alignnone size-full wp-image-219" src="http://frostbyte.us/wp-content/uploads/2018/01/2018-01-28-19_11_00-Simple-Chocolatey-Server.png" alt="Simple Chocolatey Server" width="839" height="500" /></p>
+<p>Now we have an internal server we can use to serve up custom packages using Chocolately to our Ansible managed systems.</p>
+</div>

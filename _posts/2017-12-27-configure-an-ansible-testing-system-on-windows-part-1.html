@@ -1,0 +1,124 @@
+---
+layout: post
+status: publish
+published: true
+title: Configure an Ansible testing system on Windows (Part 1)
+author:
+  display_name: kkolk
+  login: kkolk
+  email: kkolk@frostbyte.us
+  url: ''
+author_login: kkolk
+author_email: kkolk@frostbyte.us
+excerpt: "This series of articles we will be setting up a local virtual environment
+  for use in testing Ansible Playbooks.  For our example test environment we will
+  start with a simple configuration of two servers.   One domain controller for the
+  CONTOSO.com domain running Windows 2012 R2 and one member server that handles simple
+  file shares.\r\n\r\n"
+wordpress_id: 80
+wordpress_url: http://frostbyte.us/?p=80
+date: '2017-12-27 01:49:56 -0500'
+date_gmt: '2017-12-27 01:49:56 -0500'
+categories:
+- Windows
+- Ansible
+- How-to
+tags: []
+comments: []
+---
+<p>This series of articles we will be setting up a local virtual environment for use in testing Ansible Playbooks.&nbsp; For our example test environment, we will start with a simple configuration of two servers.&nbsp;&nbsp; One domain controller for the <strong>CONTOSO.com</strong> domain running Windows 2012 R2 and one member server that handles simple file shares.</p>
+<h2>Prerequisites</h2>
+<p>To get started, install these tools on your workstation.</p>
+<ul>
+<li><a href="https://www.virtualbox.org/wiki/Downloads">VirtualBox</a> (the software that creates virtual machines)</li>
+<li><a href="https://www.vagrantup.com/">Vagrant</a> (the software that deploys virtual machines and runs provisioning scripts)</li>
+</ul>
+<p>VirtualBox and Vagrant install like any other Windows program. Vagrant will install itself to your global path so you can run it from anywhere.&nbsp; No special settings are required the default setup values are fine.</p>
+<p>This guide assumes you are working on a Windows 10 workstation with <a href="http://frostbyte.us/ansible-integrated-development-environment-setup-on-windows/">an Ansible IDE using VSCode</a> already setup and that you have an empty workspace possibly with a local Git repository.&nbsp;&nbsp; In my examples I will be working in a Git repository cloned into <strong>C:\Source\ansible-for-windows\ </strong>initially containing no sub-folders and files.&nbsp;&nbsp; I am also assuming that the 192.168.100.0/24 network is unused and available for our test zone.&nbsp;&nbsp; Be sure to make adjustments if this network range is already in use on your network.</p>
+<h2>Vagrant Up!</h2>
+<p>The first thing we are going to need is some virtual machines to work against so for that we are going to use Vagrant to get our VMs up and running.&nbsp;&nbsp; These will be two Windows 2012 R2 hosts which I uploaded my <a href="https://app.vagrantup.com/kkolk/boxes/w2k12r2-sysprep-ready">kkolk/w2k12r2-sysprep-ready</a> vagrant boxes as a base images for.</p>
+<p>This is our vagrant file:</p>
+<pre>Vagrant.configure("2") do |config|
+&nbsp; config.vm.guest = :windows
+&nbsp; config.vm.communicator = "winrm"
+&nbsp; config.vm.boot_timeout = 600
+&nbsp; config.vm.graceful_halt_timeout = 600
+
+&nbsp; # Create a forwarded port mapping which allows access to a specific port
+&nbsp; # within the machine from a port on the host machine.
+&nbsp; config.vm.network :forwarded_port, guest: 3389, host: 3389, id: "msrdp", auto_correct: true
+&nbsp; config.vm.network :forwarded_port, guest: 5985, host: 5985, id: "winrm", auto_correct: true
+
+&nbsp; config.vm.define "dc" do |dc|
+&nbsp;&nbsp;&nbsp; dc.vm.box = "kkolk/w2k12r2-sysprep-ready"
+&nbsp;&nbsp;&nbsp; dc.vm.network "private_network", ip: "192.168.100.10"
+&nbsp; end
+&nbsp; config.vm.define "server" do |server|
+&nbsp;&nbsp;&nbsp; server.vm.box = "kkolk/w2k12r2-sysprep-ready"
+&nbsp;&nbsp;&nbsp; server.vm.network "private_network", ip: "192.168.100.11"
+&nbsp; end
+&nbsp; config.vm.provision "shell", path:"c:/source/ansible-for-windows/setup/scripts/ConfigureRemotingForAnsible.ps1"
+end</pre>
+<blockquote><p>Be sure the <a href="http://docs.ansible.com/ansible/latest/intro_windows.html#windows-system-prep">ConfigureRemoteingForAnsible.ps1</a> script is available on your system, it can be found in the Ansible documentation under <a href="http://docs.ansible.com/ansible/latest/intro_windows.html#windows-system-prep">Windows System Prep</a>.</p></blockquote>
+<p>This vagrantfile will spin up what will become our domain controller and first member server.&nbsp; Vagrant will configure them so that WinRM is setup for Ansible to manage them.&nbsp;&nbsp; Create this file and save it to <strong>C:\HashiCorp\Vagrant\ansible-for-windows\Vagrantfile.</strong></p>
+<blockquote><p><strong>VAGRANT_HOME</strong> can be set to change the directory where Vagrant stores global state. By default, this is set to ~/.vagrant.d. The Vagrant home directory is where things such as boxes are stored, so it can actually become quite large on disk.&nbsp;&nbsp; If you'd like to change this before we create VMs use the following command in powershell:</p>
+<pre>setx VAGRANT_HOME "X:/your/path"</pre>
+</blockquote>
+<p>Open Powershell as Administrator in <strong>C:\HashiCorp\Vagrant\ansible-for-windows\Vagrantfile</strong> and execute the following command:</p>
+<pre>vagrant up</pre>
+<p>If everything goes well vagrant should configure both VMs and you should see output similar to this:</p>
+<p><img class="alignnone size-full wp-image-107" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-vagrant-up.png" alt="" width="878" height="709" /></p>
+<p>Now we're ready to get to work configuring our servers with Ansible.</p>
+<h2>Creating a new inventory</h2>
+<p>The first thing we need is a basic inventory that contains the details required to connect to the Windows Servers we are doing development and testing on.&nbsp; This will allow Ansible to interact with Vagrant created virtual machines for our test environment.&nbsp;&nbsp; Since this will be just a local test environment we'll use the default Vagrant username and password in the images.</p>
+<p>Create the folder structure shown below in your workspace:</p>
+<p><img class="alignnone size-full wp-image-95" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1.png" alt="Initial folder structure" width="367" height="135" /></p>
+<p>Open the <strong>hosts</strong> file and enter the following:</p>
+<pre>[windows]
+[windows:children]
+domain_controllers
+member_servers
+
+[domain_controllers]
+dc01 ansible_host=192.168.100.10
+
+[member_servers]
+server01 ansible_host=192.168.100.11</pre>
+<blockquote><p>If you made any IP Address changes to the vagrantfile, be sure to mirror them here.</p></blockquote>
+<p>Open <strong>group_vars\windows.yml</strong> and enter the following:</p>
+<div>
+<div>
+<pre># Ansible user
+ansible_user: vagrant
+
+# best practice would be to encrypt this using Ansible vault
+ansible_password: vagrant
+
+# Setup some base values for connectivity to windows hosts
+# Using basic authentication because we're using a local account.
+ansible_winrm_transport: basic
+ansible_port: 5986
+ansible_connection: winrm
+
+# The following is necessary for Python 2.7.9+ when using default WinRM self-signed certificates:
+ansible_winrm_server_cert_validation: ignore</pre>
+</div>
+</div>
+<div>Save both files.</div>
+<div></div>
+<div>Now in the bash prompt in VSCode we can test connectivity to our local test environment. &nbsp; Execute the setup module using our new inventory:</div>
+<pre>ansible -i environments/test/hosts -m setup all</pre>
+<div>This should result in the output of a variety of basic information on your virtual machines, including details such as the OS Version, local memory, local network settings and variety of other information as shown below:</div>
+<div></div>
+<div><img class="alignnone size-full wp-image-108" src="http://frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-setup-test.png" alt="" width="752" height="649" /></div>
+<blockquote>
+<div>For more information on<a href="http://docs.ansible.com/ansible/latest/setup_module.html"> Ansible facts and the setup module</a> see <a href="http://docs.ansible.com/ansible/latest/setup_module.html">the official documentation</a>.</div>
+</blockquote>
+<div>This test confirms that we are able to connect to our local test environment and execute commands.</div>
+<div></div>
+<div>With this configuration complete we can move onto <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">Part 2 - Creating our Common Role</a>.</div>
+<div>
+<div>
+<div></div>
+</div>
+</div>
