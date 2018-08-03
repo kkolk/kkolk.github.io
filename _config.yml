@@ -11,7 +11,7 @@ name: Frostbyte.us
 description: DevOps and Infrastructure Automation on Windows and beyond
 
 # URL of your avatar or profile pic (you could use your GitHub profile pic)
-avatar: https://raw.githubusercontent.com/barryclark/jekyll-now/master/images/jekyll-logo.png
+avatar: https://avatars0.githubusercontent.com/u/6248447?s=460&v=4
 
 #
 # Flags below are optional
@@ -28,7 +28,7 @@ disqus:
 
 # Your website URL (e.g. http://barryclark.github.io or http://www.barryclark.co)
 # Used for Sitemap.xml and your RSS feed
-url:
+url: http://www.frostbyte.us
 
 # If you're hosting your site at a Project repository on GitHub pages
 # (http://yourusername.github.io/repository-name)
@@ -73,9 +73,6 @@ plugins:
 
 paginate: 6
 paginate_path: "/blog/page:num/"
-
-jekyll-mentions:
-    base_url: 
 
 # Exclude list
 exclude: [README.md, Gemfile, Gemfile.lock, node_modules, gulpfile.js, package.json, _site, src, vendor, CNAME, LICENSE, Rakefile, old]
