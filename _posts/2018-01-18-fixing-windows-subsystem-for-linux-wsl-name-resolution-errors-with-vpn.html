@@ -8,6 +8,7 @@ author:
   login: kkolk
   email: kkolk@frostbyte.us
   url: ''
+excerpt: If you've used WSL on a system that connects to a corporate environment you may have experienced issues resolving host names, particularly for your internal network.&nbsp;&nbsp; Here's how to resolve that.&nbsp; The primary issue is the interaction between the DNS changes the VPN connection creates (switching to corporate internal DNS) and how WSL discovers DNS settings to populate /etc/resolv.conf is flawed, this is how I fixed it for my corporate VPN solution (GlobalProtect).
 author_login: kkolk
 author_email: kkolk@frostbyte.us
 wordpress_id: 202
@@ -22,6 +23,7 @@ tags: []
 comments: []
 ---
 <p>If you've used WSL on a system that connects to a corporate environment you may have experienced issues resolving host names, particularly for your internal network.&nbsp;&nbsp; Here's how to resolve that.&nbsp; The primary issue is the interaction between the DNS changes the VPN connection creates (switching to corporate internal DNS) and how WSL discovers DNS settings to populate /etc/resolv.conf is flawed, this is how I fixed it for my corporate VPN solution (GlobalProtect).</p>
+<!--more-->
 <p>My fictional internal domain is CONTOSO.COM in this example with DNS servers internally on 172.16.3.24 and 172.16.3.25.</p>
 <p>Delete /etc/resolv.conf by typing:</p>
 <pre> sudo rm /etc/resolv.conf
