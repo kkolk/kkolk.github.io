@@ -2,7 +2,7 @@
 # This file contains configuration flags to customize your site
 #
 
-site.title: Frostbyte.us
+title: Frostbyte.us
 
 # Name of your site (displayed in the header)
 name: Frostbyte.us

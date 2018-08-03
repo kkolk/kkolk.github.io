@@ -8,6 +8,7 @@
 <html>
 	<head>
     {% include head.html %}
+
 	</head>
 	<body class="is-loading">
 
@@ -18,6 +19,7 @@
 				<header id="header">
 					<a href="{{ "/" | absolute_url }}" class="logo">{{site.title}}</a>
 				</header>
+
 
 				<!-- Nav -->
 					<nav id="nav">
@@ -35,17 +37,22 @@
 				<!-- Main -->
 				<div id="main">
 
-					<!-- Post -->
-					<section class="post">
-						<p>{{content}}</p>
-					</section>
+          <article class="post featured">
+            <header class="major">
+              <h2><a href="#">Archives</a></h2>
+              <p></p>
+            </header>
+						<p></p>
 
-					<!-- Footer -->
-						<footer>
-              <ul class="actions">
-								<li><a href="{{ "/blog/" | absolute_url }}" class="button">Our Blog</a></li>
-              </ul>
-						</footer>
+					</article>
+					<article>
+					<!-- Post -->
+						<ul>
+						{% for post in site.posts %}
+									<li><span class="date">{{ post.date | date_to_string }}</span> -- <a href="{{ post.url | absolute_url }}">{{ post.title }}</a></li>
+						{% endfor %}
+					</ul>
+					</article>
 					</div>
 
 				<!-- Footer -->
