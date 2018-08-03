@@ -8,11 +8,11 @@ author:
   login: kkolk
   email: kkolk@frostbyte.us
   url: ''
-excerpt: When many Windows administrators think of installing applications even very basic ones it's always... Next Next Next Finish.&nbsp;&nbsp; Ansible and configuration management tools like it don't work like this, they can't press Next.&nbsp;&nbsp; They require silent installers that run start to finish on their own.&nbsp;&nbsp; My recommendation for solving this problem on Windows is <a href="https://chocolatey.org/docs/why">Chocolatey</a>.&nbsp;&nbsp; It brings to Windows all the advantages of a Linux package manager like yum or apt-get and integrates well with Ansible through its <a href="http://docs.ansible.com/ansible/latest/win_chocolatey_module.html">win_chocolatey module</a> that <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">we used previously</a> when setting up our test environment.&nbsp;&nbsp; Since Chocolatey is built on top of the NuGet infrastructure, that means we can install packages from Chocolatey.org, NuGet.org, MyGet.org, file shares, directories, custom feeds and from private feeds. In this guide, we'll be developing an Ansible role to install internal server we can use to deploy our own company-specific packages.
+excerpt: When many Windows administrators think of installing applications even very basic ones it's always... Next Next Next Finish.&nbsp;&nbsp; Ansible and configuration management tools like it don't work like this, they can't press Next.&nbsp;&nbsp; They require silent installers that run start to finish on their own.&nbsp;&nbsp; My recommendation for solving this problem on Windows is <a href="https://chocolatey.org/docs/why">Chocolatey</a>.&nbsp;&nbsp; It brings to Windows all the advantages of a Linux package manager like yum or apt-get and integrates well with Ansible through its <a href="http://docs.ansible.com/ansible/latest/win_chocolatey_module.html">win_chocolatey module</a> that <a href="https://www.frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">we used previously</a> when setting up our test environment.&nbsp;&nbsp; Since Chocolatey is built on top of the NuGet infrastructure, that means we can install packages from Chocolatey.org, NuGet.org, MyGet.org, file shares, directories, custom feeds and from private feeds. In this guide, we'll be developing an Ansible role to install internal server we can use to deploy our own company-specific packages.
 author_login: kkolk
 author_email: kkolk@frostbyte.us
 wordpress_id: 228
-wordpress_url: http://frostbyte.us/?p=228
+wordpress_url: https://www.frostbyte.us/?p=228
 date: '2018-01-29 00:58:09 -0500'
 date_gmt: '2018-01-29 00:58:09 -0500'
 categories:
@@ -22,7 +22,7 @@ categories:
 tags: []
 comments: []
 ---
-<p>When many Windows administrators think of installing applications even very basic ones it's always... Next Next Next Finish.&nbsp;&nbsp; Ansible and configuration management tools like it don't work like this, they can't press Next.&nbsp;&nbsp; They require silent installers that run start to finish on their own.&nbsp;&nbsp; My recommendation for solving this problem on Windows is <a href="https://chocolatey.org/docs/why">Chocolatey</a>.&nbsp;&nbsp; It brings to Windows all the advantages of a Linux package manager like yum or apt-get and integrates well with Ansible through its <a href="http://docs.ansible.com/ansible/latest/win_chocolatey_module.html">win_chocolatey module</a> that <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">we used previously</a> when setting up our test environment.&nbsp;&nbsp; Since Chocolatey is built on top of the NuGet infrastructure, that means we can install packages from Chocolatey.org, NuGet.org, MyGet.org, file shares, directories, custom feeds and from private feeds. In this guide, we'll be developing an Ansible role to install internal server we can use to deploy our own company-specific packages.</p>
+<p>When many Windows administrators think of installing applications even very basic ones it's always... Next Next Next Finish.&nbsp;&nbsp; Ansible and configuration management tools like it don't work like this, they can't press Next.&nbsp;&nbsp; They require silent installers that run start to finish on their own.&nbsp;&nbsp; My recommendation for solving this problem on Windows is <a href="https://chocolatey.org/docs/why">Chocolatey</a>.&nbsp;&nbsp; It brings to Windows all the advantages of a Linux package manager like yum or apt-get and integrates well with Ansible through its <a href="http://docs.ansible.com/ansible/latest/win_chocolatey_module.html">win_chocolatey module</a> that <a href="https://www.frostbyte.us/configure-an-ansible-testing-system-on-windows-part-2/">we used previously</a> when setting up our test environment.&nbsp;&nbsp; Since Chocolatey is built on top of the NuGet infrastructure, that means we can install packages from Chocolatey.org, NuGet.org, MyGet.org, file shares, directories, custom feeds and from private feeds. In this guide, we'll be developing an Ansible role to install internal server we can use to deploy our own company-specific packages.</p>
 <!--more-->
 <p>At a high level, we're simply going to be implementing <a href="https://chocolatey.org/docs/how-to-set-up-chocolatey-server">chocolatey's installation guide</a> as an Ansible role.&nbsp;&nbsp; So for this, we will need to accomplish the following:</p>
 <ul>
@@ -46,10 +46,10 @@ comments: []
 </ul>
 </li>
 </ul>
-<p>When completing and testing this role, I'm going to assume that you are operating it in the CONTOSO.com Ansible test environment from <a href="http://frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">my previous 3-part guide</a>.&nbsp;&nbsp; The role as designed will operate without issue in any environment, but a few steps here when we get to testing the playbook include elements specific to that environment.&nbsp; For the purposes of this example, we'll be adding a chocolatey server to our existing member server - <strong>server01</strong>.</p>
+<p>When completing and testing this role, I'm going to assume that you are operating it in the CONTOSO.com Ansible test environment from <a href="https://www.frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">my previous 3-part guide</a>.&nbsp;&nbsp; The role as designed will operate without issue in any environment, but a few steps here when we get to testing the playbook include elements specific to that environment.&nbsp; For the purposes of this example, we'll be adding a chocolatey server to our existing member server - <strong>server01</strong>.</p>
 <h2>Getting Started</h2>
 <p>The first step in creating our new role is to create the initial folder structure; in your roles folder create the chocolatey_server folder, subfolders, and files shown below:</p>
-<p><img class="alignnone wp-image-189 size-full" src="http://frostbyte.us/wp-content/uploads/2018/01/c2-image1-e1517184475890.png" alt="" width="332" height="174" /></p>
+<p><img class="alignnone wp-image-189 size-full" src="https://www.frostbyte.us/wp-content/uploads/2018/01/c2-image1-e1517184475890.png" alt="" width="332" height="174" /></p>
 <p>Now we can start working on Chocolatey.server's requirements.&nbsp; Open up the <strong>tasks/main.yml , </strong>we need to do is add a step to ensure IIS is installed.&nbsp;&nbsp; We can use the <a href="http://docs.ansible.com/ansible/latest/win_feature_module.html">win_feature</a> module to easily accomplish this:</p>
 <pre>- name: Ensure IIS is installed
 &nbsp; win_feature:
@@ -69,7 +69,7 @@ comments: []
 &nbsp;&nbsp;&nbsp; - Web-Asp-Net45
 &nbsp;&nbsp;&nbsp; - Web-AppInit</pre>
 <p>Now when we run this playbook later Ansible will handle each of these items separately but as part of the same overall task:<br />
-<img class="alignnone size-full wp-image-190" src="http://frostbyte.us/wp-content/uploads/2018/01/c2-image2.png" alt="" width="623" height="70" /></p>
+<img class="alignnone size-full wp-image-190" src="https://www.frostbyte.us/wp-content/uploads/2018/01/c2-image2.png" alt="" width="623" height="70" /></p>
 <p>Next, we need to make sure that we have the xWebAdministration module available so that we can use Powershell Desired State Configuration (DSC) to manage IIS.&nbsp;&nbsp; Just like in our previous guide we'll use the ansible win_psmodule to verify that it's present or install it from Powershell Gallery if it's not:</p>
 <pre>- name: Ensure Powershell xWebAdministration module is available
 &nbsp; win_psmodule:
@@ -172,6 +172,6 @@ chocolatey_server_api: ChocolateyAPIKey</pre>
 <p>Now we're ready to run the playbook. Rerun our member_server play to install the Chocolately server:</p>
 <pre>ansible-playbook member_server.yml -i environments/test/hosts</pre>
 <p>Once complete open your web browser and browse to <a href="http://192.168.100.11">http://192.168.100.11</a> and you should see a page similar to this:</p>
-<p><img class="alignnone size-full wp-image-219" src="http://frostbyte.us/wp-content/uploads/2018/01/2018-01-28-19_11_00-Simple-Chocolatey-Server.png" alt="Simple Chocolatey Server" width="839" height="500" /></p>
+<p><img class="alignnone size-full wp-image-219" src="https://www.frostbyte.us/wp-content/uploads/2018/01/2018-01-28-19_11_00-Simple-Chocolatey-Server.png" alt="Simple Chocolatey Server" width="839" height="500" /></p>
 <p>Now we have an internal server we can use to serve up custom packages using Chocolately to our Ansible managed systems.</p>
 </div>
