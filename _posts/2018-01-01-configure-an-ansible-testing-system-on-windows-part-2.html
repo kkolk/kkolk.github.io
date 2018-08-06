@@ -28,7 +28,7 @@ comments: []
 <p>In the <a href="https://www.frostbyte.us/configure-an-ansible-testing-system-on-windows-part-1/">first entry of this series</a>, we configured Vagrant and VirtualBox to deploy a pair of basic Windows 2012 R2 virtual machines.&nbsp; We built our basic inventory for Ansible and verified we could connect to our newly created virtual machines.&nbsp; Now we can get onto the real work - developing Ansible playbooks.</p>
 <h2>Creating our common role</h2>
 <p>The first playbook files we will create are related to our common role for windows.&nbsp;&nbsp; Essentially these are features we are going to want available on every managed system such as latest version of PowerShell.&nbsp; First let's create the folder structure for our common role; create the roles folder and subfolders shown below:</p>
-<p><img class="alignnone size-full wp-image-113" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c2-common-role.png" alt="" width="366" height="220" /></p>
+<p><img class="alignnone size-full wp-image-113" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c2-common-role.png" alt="" width="366" height="220" /></p>
 <p>In the <strong>roles/common/tasks folder</strong> create a <strong>main.yml </strong>file.&nbsp;&nbsp; The first tasks we will add to this role will install the latest version of Powershell using the chocolatey package manager.&nbsp; Since our host doesn't have chocolatey installed, Ansible will also automatically install it.&nbsp;&nbsp; Add the following task to the file:</p>
 <div>
 <div>
@@ -72,7 +72,7 @@ ansible_become_user: vagrant</pre>
 <p>Save the file and we can now execute our first windows playbook by typing the following command into bash:</p>
 <pre>ansible-playbook domain_controller.yml -i environments/test/hosts</pre>
 <p>This will execute our playbook and assuming everything is in order you should see this output:</p>
-<p><img class="alignnone size-full wp-image-115" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-dc-first-run.png" alt="" width="874" height="308" /></p>
+<p><img class="alignnone size-full wp-image-115" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c1-dc-first-run.png" alt="" width="874" height="308" /></p>
 <p>Worked great, but no configuration is ever truly complete, so let's modify our common role to include enabling Remote Desktop Protocol on this host.&nbsp;&nbsp; To do this we will take advantage of Windows Powershell Desired State Configuration, which is very powerful when used in conjunction with Ansible using the <a href="http://docs.ansible.com/ansible/latest/win_dsc_module.html">win_dsc module</a>.&nbsp; Before we can use a particular DSC module we need to the module available, luckily we can use the win_psmodule to make sure these modules are installed.</p>
 <p>To get this setup edit the roles/common/tasks/main.yml and expand it to also complete this task by adding the following steps after our reboot for Powershell 5.0 install step:</p>
 <div>

@@ -54,7 +54,7 @@ comments: []
 <li>Scroll down and check 'Windows Subsystem for Linux (Beta)', and then click OK.</li>
 </ol>
 <p>The subsystem will be installed, then Windows will require a reboot. Reboot, then open up the start menu and enter 'bash' (to open up 'Bash' installation in a new command prompt). Answer the prompts to install Ubuntu into the WSL and create your user within WSL (this password does not sync with your Active Directory account, think of WSL as a separate virtual machine), and once that's all done (it takes a few minutes to install), you will finally have Ubuntu running on your Windows laptop, somewhat integrated with Windows.</p>
-<p><img class="alignnone wp-image-50 size-full" src="https://www.frostbyte.us/wp-content/uploads/2017/12/2017-10-23_22_32_26-kkolk@KKOLK-LAPTOP_ansible.png" alt="WSL ready to go" width="980" height="513" /></p>
+<p><img class="alignnone wp-image-50 size-full" src="https://www.frostbyte.us/images/wp_images/2017/12/2017-10-23_22_32_26-kkolk@KKOLK-LAPTOP_ansible.png" alt="WSL ready to go" width="980" height="513" /></p>
 <p>Now, you may find that networking isn't working properly in WSL, particularly if your workstation uses a VPN for access to a corporate network.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Ping a host on the internet to verify connectivity if it's not working see this quick fix.</p>
 <h2>Installing Ansible on Windows Subsystem for Linux</h2>
 <p>To begin exploring Ansible as a means of managing our various servers, we need to install the Ansible software in WSL.</p>
@@ -66,7 +66,7 @@ comments: []
 <pre> sudo apt-get update &amp;&amp; sudo apt-get upgrade &amp;&amp; sudo apt-get install ansible
 </pre>
 <p>Answer <b>Y</b> when prompted to continue for both upgrades and installation of Ansible. The entire process will take several minutes. There will be some warnings during package upgrading, don't worry about it. In the end, you should see the following output indicating Ansible 2.4.0 or newer is installed.</p>
-<p><img class="alignnone wp-image-51 size-full" src="https://www.frostbyte.us/wp-content/uploads/2017/12/2017-10-27_04_06_47-Editing_Configuring_an_Ansible_development_environment_in_Windows_-_LANWiki.png" alt="Ansible ready to go" width="980" height="512" /></p>
+<p><img class="alignnone wp-image-51 size-full" src="https://www.frostbyte.us/images/wp_images/2017/12/2017-10-27_04_06_47-Editing_Configuring_an_Ansible_development_environment_in_Windows_-_LANWiki.png" alt="Ansible ready to go" width="980" height="512" /></p>
 <p>Next, we're going to take care of getting Pip installed. Pip is a package management system used to install and manage software packages written in Python. Since Ansible is written in Python it makes use of a number of additional packages. Type the following into the command prompt:</p>
 <pre> sudo apt-get install python-pip
 </pre>
@@ -143,10 +143,10 @@ comments: []
 <p>In the next line of our settings file add the following:</p>
 <pre>   "editor.tabSize": 2</pre>
 <p>Make sure there are no red squiggles indicating formatting errors, your settings file should now look like this:</p>
-<p><img class="alignnone size-full wp-image-52" src="https://www.frostbyte.us/wp-content/uploads/2017/12/Settings.png" alt="" width="719" height="332" /></p>
+<p><img class="alignnone size-full wp-image-52" src="https://www.frostbyte.us/images/wp_images/2017/12/Settings.png" alt="" width="719" height="332" /></p>
 <p>Close and save the settings.json with CTRL+F4 or clicking on the close tab.</p>
 <p>Now press CTRL+` to open the terminal, you should now have a bash terminal as shown below.</p>
 <p>You are all set and ready to get started working with VSCode as an IDE for developing playbooks for Ansible on Windows.&nbsp;&nbsp; Below is a test run showing Ansible running a simple playbook against a windows host from within VSCode.</p>
-<p><img class="alignnone size-full wp-image-39" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-test-run.png" alt="" width="902" height="222" /></p>
+<p><img class="alignnone size-full wp-image-39" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-test-run.png" alt="" width="902" height="222" /></p>
 <h2 id="versioneverything">Version everything</h2>
 <p>You should be versioning everything including your Ansible playbooks.&nbsp; Get in the practice now while you are learning and the workflow will become second nature. For versioning and change tracking, you can use any source code management system (SCM), but I&nbsp;<strong>highly recommend Git</strong>&nbsp;to manage your infrastructure code.&nbsp; If you don't have a centralized SCM, that you at least get started with a local one which Git is a perfect choice for.&nbsp; There's a <a href="https://www.theregister.co.uk/2015/12/07/visual_studio_code_git_integration/">guide on Git with Visual Studio Code</a> how to create a local repository on <a href="https://www.theregister.co.uk/2015/12/07/visual_studio_code_git_integration/">The Register</a>, which also covers a variety of other possible providers.</p>

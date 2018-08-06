@@ -158,7 +158,7 @@ comments: []
         - Domain Admins</pre>
 <p>Let's run this playbook and get CONTOSO.com up and running:</p>
 <pre>ansible-playbook domain_controller.yml -i environments/test/hosts</pre>
-<p><img class="alignnone size-full wp-image-117" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-domain-controller-final.png" alt="" width="585" height="152" /></p>
+<p><img class="alignnone size-full wp-image-117" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c1-domain-controller-final.png" alt="" width="585" height="152" /></p>
 <blockquote><p>Occasionally a domain related task (such Domain Admin creation) will fail due to timing issues on the virtual machine.&nbsp; I've tried to add enough post_reboot_delay to get around this but timing varies greatly based on your system performance.&nbsp; So if the playbook fails it may simply be a performance issue on the VM, give it a re-run and usually it picks up and works.</p></blockquote>
 <p>All set! Now it's time to add a member server to our test environment.</p>
 <h2>Creating a member server in CONTOSO.com</h2>

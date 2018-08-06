@@ -68,12 +68,12 @@ end</pre>
 <p>Open Powershell as Administrator in <strong>C:\HashiCorp\Vagrant\ansible-for-windows\Vagrantfile</strong> and execute the following command:</p>
 <pre>vagrant up</pre>
 <p>If everything goes well vagrant should configure both VMs and you should see output similar to this:</p>
-<p><img class="alignnone size-full wp-image-107" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-vagrant-up.png" alt="" width="878" height="709" /></p>
+<p><img class="alignnone size-full wp-image-107" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c1-vagrant-up.png" alt="" width="878" height="709" /></p>
 <p>Now we're ready to get to work configuring our servers with Ansible.</p>
 <h2>Creating a new inventory</h2>
 <p>The first thing we need is a basic inventory that contains the details required to connect to the Windows Servers we are doing development and testing on.&nbsp; This will allow Ansible to interact with Vagrant created virtual machines for our test environment.&nbsp;&nbsp; Since this will be just a local test environment we'll use the default Vagrant username and password in the images.</p>
 <p>Create the folder structure shown below in your workspace:</p>
-<p><img class="alignnone size-full wp-image-95" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1.png" alt="Initial folder structure" width="367" height="135" /></p>
+<p><img class="alignnone size-full wp-image-95" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c1.png" alt="Initial folder structure" width="367" height="135" /></p>
 <p>Open the <strong>hosts</strong> file and enter the following:</p>
 <pre>[windows]
 [windows:children]
@@ -111,7 +111,7 @@ ansible_winrm_server_cert_validation: ignore</pre>
 <pre>ansible -i environments/test/hosts -m setup all</pre>
 <div>This should result in the output of a variety of basic information on your virtual machines, including details such as the OS Version, local memory, local network settings and variety of other information as shown below:</div>
 <div></div>
-<div><img class="alignnone size-full wp-image-108" src="https://www.frostbyte.us/wp-content/uploads/2017/12/ansible-for-windows-c1-setup-test.png" alt="" width="752" height="649" /></div>
+<div><img class="alignnone size-full wp-image-108" src="https://www.frostbyte.us/images/wp_images/2017/12/ansible-for-windows-c1-setup-test.png" alt="" width="752" height="649" /></div>
 <blockquote>
 <div>For more information on<a href="http://docs.ansible.com/ansible/latest/setup_module.html"> Ansible facts and the setup module</a> see <a href="http://docs.ansible.com/ansible/latest/setup_module.html">the official documentation</a>.</div>
 </blockquote>
