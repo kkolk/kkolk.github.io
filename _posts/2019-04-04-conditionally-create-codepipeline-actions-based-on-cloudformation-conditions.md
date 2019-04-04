@@ -6,7 +6,11 @@ categories: aws devops
 
 You can accomplish this by conditionally by inserting the AWS::CodePipeline::Pipeline Resource's Action into the Actions list using the Fn::If Intrinsic Function referencing your Conditions element, returning the Action when the Condition is true and AWS::NoValue (which removes the property, in this case removing the item from the list) when it is not true.
 
-For example if you pass a value that indicates if a particular element, such as Redis cluster Cloudformation should be included in a deployment when the pipeline is ran:
+For example we can cause particular element to be included when the stack is created based on a parameter. 
+
+In this case, lets look at deploying a redis cluster Cloudformation file when the pipeline is ran.
+
+We add the parameter and give it some allowed values.
 
 ```yaml
 Parameters:
@@ -24,7 +28,7 @@ Conditions:
   NeedsRedis: !Equals [ !Ref CreateRedis, "yes" ]
 ```
 
-This element in the Actions Section of the CodePipeline Resource will toggle based on the state of the condition:
+Then in the Actions Section of the CodePipeline resource we can toggle a sections inclusion based on the state of the condition:
 
 ```yaml  
 - !If 
