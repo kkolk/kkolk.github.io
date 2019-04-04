@@ -6,7 +6,7 @@ categories: aws devops
 
 You can accomplish this by conditionally by inserting the AWS::CodePipeline::Pipeline Resource's Action into the Actions list using the Fn::If Intrinsic Function referencing your Conditions element, returning the Action when the Condition is true and AWS::NoValue (which removes the property, in this case removing the item from the list) when it is not true.
 
-For example if you pass a value that indicates if a particular element, such as Redis cluster should be included in a deployment:
+For example if you pass a value that indicates if a particular element, such as Redis cluster Cloudformation should be included in a deployment when the pipeline is ran:
 
 ```yaml
 Parameters:
@@ -29,7 +29,7 @@ This element in the Actions Section of the CodePipeline Resource will toggle bas
 ```yaml  
 - !If 
 - NeedsRedis
-- Name: !Sub "CFN-${ApplicationName}-redis"
+- Name: !Sub "${ApplicationName}-redis"
   RunOrder: 2
   InputArtifacts:
     - Name: Build
